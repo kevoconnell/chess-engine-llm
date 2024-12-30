@@ -77,8 +77,8 @@ async function findSafeMove(chess: Chess): Promise<string> {
 async function withRateLimit<T>(fn: () => Promise<T>): Promise<T> {
   try {
     return await fn();
-  } catch (error) {
-    if (error.message?.includes("rate limit")) {
+  } catch (error: any) {
+    if (error.message?.toLowerCase().includes("rate limit")) {
       console.log(
         `Rate limited. Waiting ${RATE_LIMIT_DELAY / 1000}s before retry...`
       );
