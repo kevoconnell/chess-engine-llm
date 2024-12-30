@@ -19,6 +19,7 @@ export const config = {
       baseUrl: "https://lichess.org/api",
       timeout: 5000,
       apiKey: process.env.LICHESS_API_TOKEN,
+      botUsername: process.env.LICHESS_BOT_USERNAME,
     },
   },
 } as const;

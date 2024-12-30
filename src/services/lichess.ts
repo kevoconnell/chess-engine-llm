@@ -10,13 +10,12 @@ import { initializeEngine } from "./stockfish";
 import { generateMove } from "./llm";
 import { config } from "../config";
 
-// Store SSE clients
+const BOT_USERNAME = config.api.lichess.botUsername;
+
 const sseClients = new Map<number, express.Response>();
 
-// Store current game state
 let currentGameState: GameState | null = null;
 
-// Modify broadcastGameState to include chat messages
 const broadcastGameState = (gameState: GameState): void => {
   // Ensure chat messages are always present
   const stateWithChat = {
@@ -155,7 +154,7 @@ async function handleGame(gameId: string) {
 
               if (
                 chatEvent.type === "chatLine" &&
-                chatEvent.username !== "ilovejeans"
+                chatEvent.username !== BOT_USERNAME
               ) {
                 console.log("Processing chat from:", chatEvent.username); // Debug log
               }
@@ -266,7 +265,7 @@ async function processGameState(
         white: state.white?.rating || 0,
         black: state.black?.rating || 0,
       },
-      botColor: state.white?.id === "ilovejeans" ? "white" : "black",
+      botColor: state.white?.id === BOT_USERNAME ? "white" : "black",
       chatMessages: state.chat || [],
     });
 
@@ -305,7 +304,7 @@ async function processGameState(
     return;
   }
 
-  const botId = "ilovejeans";
+  const botId = BOT_USERNAME;
   const isPlayingWhite = state.white?.id === botId;
   const moveCount = moveList.length;
   const isOurTurn = isPlayingWhite ? moveCount % 2 === 0 : moveCount % 2 === 1;
