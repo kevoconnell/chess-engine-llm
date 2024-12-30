@@ -480,35 +480,35 @@ async function seekGame(retryCount = 0): Promise<void> {
   const now = new Date();
   const currentHour = now.getHours();
 
-  //   // Check if we're within playing hours
-  //   if (
-  //     currentHour < PLAY_SCHEDULE.START_HOUR ||
-  //     currentHour >= PLAY_SCHEDULE.END_HOUR
-  //   ) {
-  //     const nextPlayTime = new Date();
-  //     nextPlayTime.setHours(PLAY_SCHEDULE.START_HOUR, 0, 0, 0);
-  //     if (currentHour >= PLAY_SCHEDULE.END_HOUR) {
-  //       nextPlayTime.setDate(nextPlayTime.getDate() + 1);
-  //     }
+  // Check if we're within playing hours
+  if (
+    currentHour < PLAY_SCHEDULE.START_HOUR ||
+    currentHour >= PLAY_SCHEDULE.END_HOUR
+  ) {
+    const nextPlayTime = new Date();
+    nextPlayTime.setHours(PLAY_SCHEDULE.START_HOUR, 0, 0, 0);
+    if (currentHour >= PLAY_SCHEDULE.END_HOUR) {
+      nextPlayTime.setDate(nextPlayTime.getDate() + 1);
+    }
 
-  //     const timeUntilNextSession = nextPlayTime.getTime() - now.getTime();
+    const timeUntilNextSession = nextPlayTime.getTime() - now.getTime();
 
-  //     broadcastGameState({
-  //       type: "status",
-  //       message: "Taking a break for the night. Will return tomorrow at 8 AM!",
-  //       nextSessionTime: nextPlayTime.toISOString(),
-  //       fen: "",
-  //       isOurTurn: false,
-  //       ratings: { white: 0, black: 0 },
-  //       botColor: "white",
-  //     });
+    broadcastGameState({
+      type: "status",
+      message: "Taking a break for the night. Will return tomorrow at 8 AM!",
+      nextSessionTime: nextPlayTime.toISOString(),
+      fen: "",
+      isOurTurn: false,
+      ratings: { white: 0, black: 0 },
+      botColor: "white",
+    });
 
-  //     console.log(`Outside playing hours. Next session at ${nextPlayTime}`);
+    console.log(`Outside playing hours. Next session at ${nextPlayTime}`);
 
-  //     // Add timeout to resume play
-  //     setTimeout(() => seekGame(), timeUntilNextSession);
-  //     return;
-  //   }
+    // Add timeout to resume play
+    setTimeout(() => seekGame(), timeUntilNextSession);
+    return;
+  }
 
   // Session break logic
   const sessionLength = sessionStartTime
