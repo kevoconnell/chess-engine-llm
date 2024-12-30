@@ -30,9 +30,11 @@ A powerful chess bot for Lichess that leverages advanced game analysis and UCI e
 
 ### Installation
 
+```
 git clone git@github.com:kevoconnell/chess-engine-llm.git
 
 npm i 
+```
 
 [Get a Lichess personal token](https://lichess.org/account/oauth/token)
 
