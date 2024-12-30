@@ -182,8 +182,8 @@ export async function generateMove(
       `;
 
       const moveChoice = await openai.chat.completions.create({
-        model: "o1-mini",
-        messages: [{ role: "user", content: prompt }],
+        model: "gpt-4o-mini",
+        messages: [{ role: "system", content: prompt }],
       });
 
       const chosenMove = moveChoice.choices[0].message.content?.trim();
