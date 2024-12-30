@@ -12,10 +12,10 @@ WORKDIR /usr/src/app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
+# Install dependencies and TypeScript type definitions
 RUN npm install
-# Install TypeScript globally
 RUN npm install -g typescript
+RUN npm install --save-dev @types/node @types/dotenv
 
 # Copy source code
 COPY . .
