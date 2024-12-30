@@ -69,20 +69,28 @@ export async function generateMove(
         )
         .join("\n")}
       
-      Key Considerations:
-      1. Position is ${isComplexPosition ? "complex" : "straightforward"}
-      2. Game phase weight: ${PHASE_WEIGHTS[gamePhase]}
-      3. Don't blunder pieces or miss tactical opportunities
-      4. Maintain a natural, human-like playing style
-      5. Consider both immediate tactics and strategic elements
+      CRITICAL PRIORITIES:
+      1. IMMEDIATELY CAPTURE ANY UNDEFENDED PIECES, especially high-value pieces like queens and rooks
+      2. Check if any pieces can be won through simple tactics (forks, pins, skewers)
+      3. Verify if any pieces are hanging or can be captured safely
+      
+      Secondary Considerations:
+      - Position is ${isComplexPosition ? "complex" : "straightforward"}
+      - Game phase weight: ${PHASE_WEIGHTS[gamePhase]}
+      - Maintain a natural, human-like playing style
+      - Consider positional elements only after checking for tactical opportunities
+      
+      Analysis Process:
+      1. First, scan for ANY possible captures, especially of high-value pieces
+      2. Check if any tactical patterns exist that win material
+      3. Only after confirming no immediate tactical opportunities, consider positional play
       
       Choose ONE move that:
+      - Prioritizes material gains and tactical opportunities
       - Avoids blunders (moves that lose more than ${
         EVAL_THRESHOLDS.BLUNDER
       } centipawns)
-      - Considers both tactical and positional elements
-      - Considers the playing strength of a ${accountRating}-rated player while also wanting to win.
-      - Maintains strategic continuity
+      - Matches the playing strength of a ${accountRating}-rated player while maximizing winning chances
       
       Return ONLY the chosen move in standard algebraic notation (e.g., 'e4', 'Nf6').
     `;
