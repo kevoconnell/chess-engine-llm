@@ -7,7 +7,6 @@
     "node": "18.x"
   },
   "scripts": {
-    "prestart": "npx playwright install chromium",
     "start": "npx tsx src/index.ts",
     "dev": "npx tsx watch src/index.ts",
     "build": "tsc",
