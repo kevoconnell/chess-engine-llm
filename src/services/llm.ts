@@ -88,10 +88,9 @@ export async function generateMove(
     `;
 
     const moveChoice = await openai.chat.completions.create({
-      model: "gpt-4o", // Using the latest model for better analysis
-      messages: [{ role: "system", content: prompt }],
-      temperature: 0.3, // Lower temperature for more consistent moves
-      max_tokens: 10,
+      model: "o1-mini",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.3,
     });
 
     const chosenMove = moveChoice.choices[0].message.content?.trim();
