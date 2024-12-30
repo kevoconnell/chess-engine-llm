@@ -3,9 +3,9 @@ FROM node:18-bullseye
 
 # Install Stockfish and other dependencies
 RUN apt-get update && \
-    apt-get install -y \
-    stockfish \
-    && rm -rf /var/lib/apt/lists/*
+    apt-get install -y stockfish && \
+    ln -s /usr/games/stockfish /usr/bin/stockfish && \
+    rm -rf /var/lib/apt/lists/*
 
 # Create app directory
 WORKDIR /usr/src/app
