@@ -284,6 +284,32 @@ async function handleGame(gameId: string) {
   }
 }
 
+// Add this constant at the top with other constants
+const RESIGN_THRESHOLD = -6; // Resign if we're down by 6 points (equivalent to a queen + pawn)
+
+// Add this helper function
+async function resignGame(gameId: string): Promise<void> {
+  try {
+    const response = await fetch(
+      `https://lichess.org/api/board/game/${gameId}/resign`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${config.api.lichess.apiKey}`,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to resign: ${response.status} ${response.statusText}`
+      );
+    }
+  } catch (error) {
+    console.error("Error resigning game:", error);
+  }
+}
+
 async function processGameState(
   state: any,
   gameId: string,
@@ -410,6 +436,21 @@ async function processGameState(
 
   if (currentGameState) {
     broadcastGameState(currentGameState);
+  }
+
+  // After creating the chess instance and applying moves:
+  const positionAdvantage = evaluatePosition(chess);
+  const shouldResign =
+    (isPlayingWhite && positionAdvantage < RESIGN_THRESHOLD) ||
+    (!isPlayingWhite && positionAdvantage > -RESIGN_THRESHOLD);
+
+  if (shouldResign && moveList.length > 10) {
+    // Only resign after move 10
+    console.log(
+      `Resigning game ${gameId} due to position evaluation: ${positionAdvantage}`
+    );
+    await resignGame(gameId);
+    return;
   }
 }
 
