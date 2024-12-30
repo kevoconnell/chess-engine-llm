@@ -6,8 +6,8 @@ import { getStockfishEvaluation } from "./stockfish";
 
 // Add constants for evaluation thresholds
 const EVAL_THRESHOLDS = {
-  BLUNDER: -200, // centipawns
-  MISTAKE: -100,
+  BLUNDER: -300, // More tolerant of material sacrifices
+  MISTAKE: -150,
   GOOD_MOVE: 50,
   EXCELLENT: 150,
 };
@@ -29,6 +29,13 @@ const PIECE_VALUES = {
 
 const DEBUG = true;
 const RATE_LIMIT_DELAY = 5000; // 5 seconds
+
+// Add new constants for aggressive play
+const AGGRESSION_SETTINGS = {
+  ATTACK_BONUS: 100, // Bonus points for moves that attack enemy pieces
+  CENTER_CONTROL_BONUS: 50, // Bonus for controlling central squares
+  FORWARD_MOVEMENT_BONUS: 30, // Bonus for moving pieces towards enemy king
+};
 
 function findBestCapture(chess: Chess): string | null {
   const moves = chess.moves({ verbose: true });
@@ -89,6 +96,30 @@ async function withRateLimit<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
+// Add function to evaluate attacking potential
+function evaluateAttackingPotential(chess: Chess, move: string): number {
+  const originalPosition = chess.fen();
+  chess.move(move);
+
+  let attackScore = 0;
+  const moves = chess.moves({ verbose: true });
+
+  // Count attacks against enemy pieces
+  moves.forEach((m) => {
+    if (m.flags.includes("c")) {
+      // Capture
+      attackScore += AGGRESSION_SETTINGS.ATTACK_BONUS;
+    }
+    // Bonus for moves that check the king
+    if (m.flags.includes("k")) {
+      attackScore += AGGRESSION_SETTINGS.ATTACK_BONUS * 1.5;
+    }
+  });
+
+  chess.load(originalPosition);
+  return attackScore;
+}
+
 export async function generateMove(
   fen: string,
   accountRating: number
@@ -128,43 +159,26 @@ export async function generateMove(
       );
 
       const prompt = `
-        You are a ${accountRating}-rated chess player analyzing this position:
-        FEN: ${fen}
-        Move: ${moveCount}
-        Phase: ${gamePhase}
-        Material: ${materialBalance}
-        
-        Stockfish's top moves (depth ${stockfishEval[0]?.depth || 20}):
-        ${stockfishEval
-          .map(
-            (e, i) => `${i + 1}. ${e.move} (score: ${e.score}, line: ${e.line})`
-          )
-          .join("\n")}
+        You are a world class chess player who loves attacking and sacrificing pieces for initiative.
+        Analyzing position: ${fen}
         
         CRITICAL PRIORITIES:
-        1. IMMEDIATELY CAPTURE ANY UNDEFENDED PIECES, especially high-value pieces like queens and rooks
-        2. Check if any pieces can be won through simple tactics (forks, pins, skewers)
-        3. Verify if any pieces are hanging or can be captured safely
+        1. Look for ATTACKING moves first, especially towards the enemy king
+        2. Consider piece sacrifices if they lead to strong attacking chances
+        3. Prioritize development towards the enemy kingside
+        4. Only capture pieces if it doesn't slow down the attack
         
         Secondary Considerations:
-        - Position is ${isComplexPosition ? "complex" : "straightforward"}
-        - Game phase weight: ${PHASE_WEIGHTS[gamePhase]}
-        - Maintain a natural, human-like playing style
-        - Consider positional elements only after checking for tactical opportunities
-        
-        Analysis Process:
-        1. First, scan for ANY possible captures, especially of high-value pieces
-        2. Check if any tactical patterns exist that win material
-        3. Only after confirming no immediate tactical opportunities, consider positional play
+        - Maintain attacking pressure even if slightly worse materially
+        - Prefer moves that create threats and complications
+        - Control central squares to support the attack
         
         Choose ONE move that:
-        - Prioritizes material gains and tactical opportunities
-        - Avoids blunders (moves that lose more than ${
-          EVAL_THRESHOLDS.BLUNDER
-        } centipawns)
-        - Matches the playing strength of a ${accountRating}-rated player while maximizing winning chances
+        - Maximizes attacking potential and piece activity
+        - Creates tactical complications
+        - Matches the playing strength of a world class chess player
         
-        Return ONLY the chosen move in standard algebraic notation (e.g., 'e4', 'Nf6').
+        Return ONLY the chosen move in standard algebraic notation.
       `;
 
       const moveChoice = await openai.chat.completions.create({
