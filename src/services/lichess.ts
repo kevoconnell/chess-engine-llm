@@ -68,6 +68,56 @@ const CRON_SCHEDULES = {
   SESSION_BREAK: "0 */4 * * *",
 };
 
+// Add at the top with other constants
+const RATE_LIMIT = {
+  COOLDOWN_PERIOD: 60000, // 1 minute in milliseconds
+  MAX_RETRIES: 3,
+};
+
+// Add global rate limiting state
+let isRateLimited = false;
+let rateLimitResetTime: number | null = null;
+
+// Add rate limit queue
+const requestQueue: Array<() => Promise<void>> = [];
+let isProcessingQueue = false;
+
+// Add queue processor
+async function processRequestQueue() {
+  if (isProcessingQueue || requestQueue.length === 0) return;
+
+  isProcessingQueue = true;
+
+  while (requestQueue.length > 0) {
+    if (isRateLimited) {
+      const waitTime = rateLimitResetTime
+        ? rateLimitResetTime - Date.now()
+        : RATE_LIMIT.COOLDOWN_PERIOD;
+      console.log(
+        `Rate limited. Waiting ${Math.ceil(
+          waitTime / 1000
+        )} seconds before resuming...`
+      );
+      await new Promise((resolve) => setTimeout(resolve, waitTime));
+      isRateLimited = false;
+      rateLimitResetTime = null;
+    }
+
+    const request = requestQueue.shift();
+    if (request) {
+      try {
+        await request();
+        // Add small delay between requests
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      } catch (error) {
+        console.error("Request failed:", error);
+      }
+    }
+  }
+
+  isProcessingQueue = false;
+}
+
 function parseRetryAfter(response: Response): number {
   const retryAfterMs = response.headers.get("Retry-After-Ms");
   if (retryAfterMs) {
@@ -418,63 +468,55 @@ async function startGameLoop() {
 }
 
 // Modify makeMove function to handle rate limits
-async function makeMove(
-  gameId: string,
-  move: string,
-  retryCount = 0
-): Promise<any> {
-  try {
-    const response = await fetch(
-      `https://lichess.org/api/board/game/${gameId}/move/${move}`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${config.api.lichess.apiKey}`,
-          "Content-Type": "application/json",
-        },
-        signal: AbortSignal.timeout(5000),
+async function makeMove(gameId: string, move: string): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const request = async () => {
+      try {
+        const response = await fetch(
+          `https://lichess.org/api/board/game/${gameId}/move/${move}`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${config.api.lichess.apiKey}`,
+              "Content-Type": "application/json",
+            },
+            signal: AbortSignal.timeout(5000),
+          }
+        );
+
+        if (response.status === 429) {
+          isRateLimited = true;
+          const retryAfter = response.headers.get("Retry-After");
+          if (retryAfter) {
+            rateLimitResetTime = Date.now() + parseInt(retryAfter) * 1000;
+          } else {
+            rateLimitResetTime = Date.now() + RATE_LIMIT.COOLDOWN_PERIOD;
+          }
+          throw new Error("Rate limited");
+        }
+
+        if (!response.ok) {
+          throw new Error(
+            `Failed to make move: ${response.status} ${response.statusText}`
+          );
+        }
+
+        const responseText = await response.text();
+        resolve(responseText ? JSON.parse(responseText) : null);
+      } catch (error) {
+        console.error("Error in make move:", error);
+        reject(error);
       }
-    );
+    };
 
-    if (response.status === 429) {
-      await handleRateLimit(response, retryCount);
-      return makeMove(gameId, move, retryCount + 1);
-    }
-
-    if (!response.ok) {
-      throw new Error(
-        `Failed to make move: ${response.status} ${response.statusText}`
-      );
-    }
-
-    const responseText = await response.text();
-    return responseText ? JSON.parse(responseText) : null;
-  } catch (error) {
-    console.error(`Error making move (attempt ${retryCount + 1}):`, error);
-
-    // Retry logic for specific errors
-    if (
-      retryCount < MAX_RETRIES &&
-      (error instanceof TypeError || // Network errors
-        (error instanceof Error &&
-          error.message.includes("Failed to make move"))) // API errors
-    ) {
-      console.log(`Retrying in ${RETRY_DELAY}ms...`);
-      await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY));
-      return makeMove(gameId, move, retryCount + 1);
-    }
-
-    // If we've exhausted retries or it's an unrecoverable error
-    console.error("Failed to make move after retries");
-    throw error;
-  }
+    requestQueue.push(request);
+    processRequestQueue();
+  });
 }
 
 // Modify seekGame function to handle rate limits
 async function seekGame(retryCount = 0): Promise<void> {
-  if (isInGame || activeGames.size > 0) {
-    return;
-  }
+  if (isInGame || activeGames.size > 0) return;
 
   const now = new Date();
   const currentHour = now.getHours();
@@ -554,39 +596,49 @@ async function seekGame(retryCount = 0): Promise<void> {
     return;
   }
 
-  try {
-    const response = await fetch("https://lichess.org/api/board/seek", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${config.api.lichess.apiKey}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams({
-        rated: "true",
-        time: "10",
-        increment: "5",
-        color: "random",
-      }),
-    });
+  return new Promise((resolve, reject) => {
+    const request = async () => {
+      try {
+        const response = await fetch("https://lichess.org/api/board/seek", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${config.api.lichess.apiKey}`,
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: new URLSearchParams({
+            rated: "true",
+            time: "10",
+            increment: "5",
+            color: "random",
+          }),
+        });
 
-    if (response.status === 429) {
-      await handleRateLimit(response, retryCount);
-      return seekGame(retryCount + 1);
-    }
+        if (response.status === 429) {
+          isRateLimited = true;
+          const retryAfter = response.headers.get("Retry-After");
+          if (retryAfter) {
+            rateLimitResetTime = Date.now() + parseInt(retryAfter) * 1000;
+          } else {
+            rateLimitResetTime = Date.now() + RATE_LIMIT.COOLDOWN_PERIOD;
+          }
+          throw new Error("Rate limited");
+        }
 
-    if (!response.ok) {
-      throw new Error(`Failed to seek game: ${response.statusText}`);
-    }
+        if (!response.ok) {
+          throw new Error(`Failed to seek game: ${response.statusText}`);
+        }
 
-    gamesPlayedInSession++;
-  } catch (error) {
-    console.error("Error seeking game:", error);
-    if (retryCount < MAX_RETRIES) {
-      await new Promise((resolve) => setTimeout(resolve, INITIAL_BACKOFF));
-      return seekGame(retryCount + 1);
-    }
-    throw error;
-  }
+        gamesPlayedInSession++;
+        resolve();
+      } catch (error) {
+        console.error("Error in seek game:", error);
+        reject(error);
+      }
+    };
+
+    requestQueue.push(request);
+    processRequestQueue();
+  });
 }
 
 // New helper functions for position evaluation
