@@ -514,7 +514,14 @@ async function makeMove(gameId: string, move: string): Promise<any> {
   });
 }
 
-// Modify seekGame function to handle rate limits
+// Add these constants at the top with other rate limit constants
+const SEEK_RETRY = {
+  MAX_RETRIES: 3,
+  BASE_DELAY: 5000,
+  MAX_DELAY: 30000,
+};
+
+// Modify seekGame function to handle rate limits better
 async function seekGame(retryCount = 0): Promise<void> {
   if (isInGame || activeGames.size > 0) return;
 
@@ -614,14 +621,33 @@ async function seekGame(retryCount = 0): Promise<void> {
         });
 
         if (response.status === 429) {
+          const retryAfter = parseRetryAfter(response);
           isRateLimited = true;
-          const retryAfter = response.headers.get("Retry-After");
-          if (retryAfter) {
-            rateLimitResetTime = Date.now() + parseInt(retryAfter) * 1000;
+          rateLimitResetTime = Date.now() + retryAfter;
+
+          if (retryCount < SEEK_RETRY.MAX_RETRIES) {
+            const delay = Math.min(
+              SEEK_RETRY.BASE_DELAY * Math.pow(2, retryCount),
+              SEEK_RETRY.MAX_DELAY
+            );
+
+            console.log(
+              `Rate limited while seeking. Retrying in ${
+                delay / 1000
+              }s (attempt ${retryCount + 1}/${SEEK_RETRY.MAX_RETRIES})`
+            );
+
+            setTimeout(() => {
+              seekGame(retryCount + 1)
+                .then(resolve)
+                .catch(reject);
+            }, delay);
+            return;
           } else {
-            rateLimitResetTime = Date.now() + RATE_LIMIT.COOLDOWN_PERIOD;
+            throw new Error(
+              `Max retry attempts (${SEEK_RETRY.MAX_RETRIES}) reached for seeking game`
+            );
           }
-          throw new Error("Rate limited");
         }
 
         if (!response.ok) {
@@ -629,6 +655,8 @@ async function seekGame(retryCount = 0): Promise<void> {
         }
 
         gamesPlayedInSession++;
+        isRateLimited = false;
+        rateLimitResetTime = null;
         resolve();
       } catch (error) {
         console.error("Error in seek game:", error);
@@ -636,8 +664,19 @@ async function seekGame(retryCount = 0): Promise<void> {
       }
     };
 
-    requestQueue.push(request);
-    processRequestQueue();
+    // Only add to queue if not rate limited or it's a retry
+    if (!isRateLimited || retryCount > 0) {
+      requestQueue.push(request);
+      processRequestQueue();
+    } else {
+      // If rate limited, wait for reset time and retry
+      const waitTime = rateLimitResetTime
+        ? rateLimitResetTime - Date.now()
+        : RATE_LIMIT.COOLDOWN_PERIOD;
+      setTimeout(() => {
+        seekGame(retryCount).then(resolve).catch(reject);
+      }, waitTime);
+    }
   });
 }
 
