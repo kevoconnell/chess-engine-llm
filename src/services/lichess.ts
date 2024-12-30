@@ -3,6 +3,7 @@ import { WebSocket, WebSocketServer } from "ws";
 import lichess from "../initalizers/lichess";
 import express from "express";
 import cron from "node-cron";
+import axios from "axios";
 
 import { ChatCompletionMessage } from "openai/resources/chat";
 import { GameEvent, GameState } from "../types/chess.types";
@@ -128,17 +129,33 @@ function parseRetryAfter(response: Response): number {
   return retryAfter ? parseInt(retryAfter) * 1000 : INITIAL_BACKOFF;
 }
 
-async function handleRateLimit(
-  response: Response,
-  retryCount: number
-): Promise<void> {
-  if (retryCount >= MAX_RETRIES) {
-    throw new Error("Max retries reached");
+// Add rate limit tracking
+const rateLimits = {
+  lastRequest: 0,
+  waitTime: 0,
+  maxAttempts: 3,
+  baseDelay: 5000,
+};
+
+async function handleRateLimit(attempt: number = 1): Promise<void> {
+  const now = Date.now();
+  const timeSinceLastRequest = now - rateLimits.lastRequest;
+
+  if (timeSinceLastRequest < rateLimits.waitTime) {
+    const actualWaitTime = Math.max(
+      0,
+      rateLimits.waitTime - timeSinceLastRequest
+    );
+    console.log(
+      `Rate limited. Waiting ${Math.ceil(
+        actualWaitTime / 1000
+      )}s before resuming...`
+    );
+    await new Promise((resolve) => setTimeout(resolve, actualWaitTime));
   }
 
-  const waitTime = parseRetryAfter(response);
-  console.log(`Rate limited. Retrying in ${waitTime / 1000} seconds...`);
-  await new Promise((resolve) => setTimeout(resolve, waitTime));
+  rateLimits.lastRequest = Date.now();
+  rateLimits.waitTime = attempt * rateLimits.baseDelay;
 }
 
 async function handleGame(gameId: string) {
@@ -162,7 +179,7 @@ async function handleGame(gameId: string) {
     });
 
     if (ratingResponse.status === 429) {
-      await handleRateLimit(ratingResponse, 0);
+      await handleRateLimit(0);
       return handleGame(gameId); // Retry the entire game handling
     }
 
@@ -290,23 +307,24 @@ const RESIGN_THRESHOLD = -6; // Resign if we're down by 6 points (equivalent to 
 // Add this helper function
 async function resignGame(gameId: string): Promise<void> {
   try {
-    const response = await fetch(
+    const response = await axios.post(
       `https://lichess.org/api/board/game/${gameId}/resign`,
       {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${config.api.lichess.apiKey}`,
-        },
+        headers: { Authorization: `Bearer ${config.api.lichess.apiKey}` },
       }
     );
-
-    if (!response.ok) {
+    if (response.status !== 200) {
       throw new Error(
         `Failed to resign: ${response.status} ${response.statusText}`
       );
     }
-  } catch (error) {
-    console.error("Error resigning game:", error);
+  } catch (error: any) {
+    if (error.response?.status === 400) {
+      // Game might already be finished, log and continue
+      console.log(`Game ${gameId} already finished or cannot be resigned`);
+      return;
+    }
+    throw error;
   }
 }
 
@@ -563,7 +581,7 @@ const SEEK_RETRY = {
 };
 
 // Modify seekGame function to handle rate limits better
-async function seekGame(retryCount = 0): Promise<void> {
+async function seekGame(attempts: number = 1): Promise<void> {
   if (isInGame || activeGames.size > 0) return;
 
   const now = new Date();
@@ -644,81 +662,43 @@ async function seekGame(retryCount = 0): Promise<void> {
     return;
   }
 
-  return new Promise((resolve, reject) => {
-    const request = async () => {
-      try {
-        const response = await fetch("https://lichess.org/api/board/seek", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${config.api.lichess.apiKey}`,
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: new URLSearchParams({
-            rated: "true",
-            time: "10",
-            increment: "5",
-            color: "random",
-          }),
-        });
+  try {
+    await handleRateLimit(attempts);
+    const response = await fetch("https://lichess.org/api/board/seek", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${config.api.lichess.apiKey}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        rated: "true",
+        time: "10",
+        increment: "5",
+        color: "random",
+      }),
+    });
 
-        if (response.status === 429) {
-          const retryAfter = parseRetryAfter(response);
-          isRateLimited = true;
-          rateLimitResetTime = Date.now() + retryAfter;
-
-          if (retryCount < SEEK_RETRY.MAX_RETRIES) {
-            const delay = Math.min(
-              SEEK_RETRY.BASE_DELAY * Math.pow(2, retryCount),
-              SEEK_RETRY.MAX_DELAY
-            );
-
-            console.log(
-              `Rate limited while seeking. Retrying in ${
-                delay / 1000
-              }s (attempt ${retryCount + 1}/${SEEK_RETRY.MAX_RETRIES})`
-            );
-
-            setTimeout(() => {
-              seekGame(retryCount + 1)
-                .then(resolve)
-                .catch(reject);
-            }, delay);
-            return;
-          } else {
-            throw new Error(
-              `Max retry attempts (${SEEK_RETRY.MAX_RETRIES}) reached for seeking game`
-            );
-          }
-        }
-
-        if (!response.ok) {
-          throw new Error(`Failed to seek game: ${response.statusText}`);
-        }
-
-        gamesPlayedInSession++;
-        isRateLimited = false;
-        rateLimitResetTime = null;
-        resolve();
-      } catch (error) {
-        console.error("Error in seek game:", error);
-        reject(error);
-      }
-    };
-
-    // Only add to queue if not rate limited or it's a retry
-    if (!isRateLimited || retryCount > 0) {
-      requestQueue.push(request);
-      processRequestQueue();
-    } else {
-      // If rate limited, wait for reset time and retry
-      const waitTime = rateLimitResetTime
-        ? rateLimitResetTime - Date.now()
-        : RATE_LIMIT.COOLDOWN_PERIOD;
-      setTimeout(() => {
-        seekGame(retryCount).then(resolve).catch(reject);
-      }, waitTime);
+    if (response.status === 429 && attempts < rateLimits.maxAttempts) {
+      console.log(
+        `Rate limited while seeking. Retrying in ${
+          rateLimits.waitTime / 1000
+        }s (attempt ${attempts}/${rateLimits.maxAttempts})`
+      );
+      await new Promise((resolve) => setTimeout(resolve, rateLimits.waitTime));
+      return seekGame(attempts + 1);
     }
-  });
+
+    if (!response.ok) {
+      throw new Error(`Failed to seek game: ${response.statusText}`);
+    }
+
+    gamesPlayedInSession++;
+    isRateLimited = false;
+    rateLimitResetTime = null;
+  } catch (error: any) {
+    console.error("Error in seek game:", error);
+    throw error;
+  }
 }
 
 // New helper functions for position evaluation
