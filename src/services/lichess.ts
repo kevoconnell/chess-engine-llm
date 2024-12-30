@@ -47,7 +47,7 @@ let activeGames = new Set<string>();
 
 // Add these constants at the top of the file
 const INITIAL_BACKOFF = 5000; // 5 seconds
-const MAX_BACKOFF = 300000; // 5 minutes
+
 const RETRY_DELAY = 1000; // 1 second
 const MAX_RETRIES = 20;
 
@@ -680,20 +680,16 @@ function convertToUCI(move: string, chess: Chess): string {
   }
 }
 
-// Add this helper function
 function getRandomDelay(moveNumber: number): number {
-  // Base delay between 2-4 seconds
-  const baseDelay = Math.random() * 2000 + 2000;
+  const baseDelay = Math.random() * 1000 + 1000;
 
-  // Add extra delay for opening moves (first 10 moves)
-  if (moveNumber <= 10) {
-    return baseDelay + Math.random() * 2000;
+  if (moveNumber >= 10) {
+    return baseDelay + Math.random() * 1000;
   }
 
   return baseDelay;
 }
 
-// Add these functions at the top level
 export function addSSEClient(id: number, res: express.Response) {
   sseClients.set(id, res);
 }
@@ -713,7 +709,6 @@ export function getActiveGameIds(): string[] {
   return Array.from(activeGames);
 }
 
-// Add evaluation function
 function evaluatePosition(chess: Chess): number {
   const position = chess.board();
   const values = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
