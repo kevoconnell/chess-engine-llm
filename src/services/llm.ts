@@ -4,13 +4,31 @@ import { getGamePhase, evaluateMaterial } from "./lichess";
 import openai from "../initalizers/openai";
 import { getStockfishEvaluation } from "./stockfish";
 
+// Add constants for evaluation thresholds
+const EVAL_THRESHOLDS = {
+  BLUNDER: -200, // centipawns
+  MISTAKE: -100,
+  GOOD_MOVE: 50,
+  EXCELLENT: 150,
+};
+
+const PHASE_WEIGHTS = {
+  opening: 0.7, // Higher weight on book moves and development
+  middlegame: 0.8, // Balance between tactics and strategy
+  endgame: 0.9, // Higher weight on precise moves
+};
+
 async function findSafeMove(chess: Chess): Promise<string> {
   try {
-    // Get Stockfish evaluation first
     const stockfishEval = await getStockfishEvaluation(chess.fen());
-    return stockfishEval[1]?.move || chess.moves({ verbose: true })[0].san;
+    // Pick from top 3 moves to add variety while ensuring safety
+    const safeIndex = Math.floor(
+      Math.random() * Math.min(3, stockfishEval.length)
+    );
+    return (
+      stockfishEval[safeIndex]?.move || chess.moves({ verbose: true })[0].san
+    );
   } catch (error) {
-    // Fallback to simple move if Stockfish fails
     return chess.moves({ verbose: true })[0].san;
   }
 }
@@ -22,55 +40,82 @@ export async function generateMove(
   const chess = new Chess(fen);
   const allLegalMoves = chess.moves({ verbose: true });
   const moveCount = chess.moveNumber();
+  const gamePhase = getGamePhase(chess);
 
   if (allLegalMoves.length === 0) return "";
 
   try {
-    // Get Stockfish evaluation
+    // Get detailed Stockfish evaluation
     const stockfishEval = await getStockfishEvaluation(fen);
 
+    // Calculate position complexity and material balance
+    const materialBalance = evaluateMaterial(chess);
+    const isComplexPosition = stockfishEval.some(
+      (evaluation, index) =>
+        index > 0 && Math.abs(evaluation.score - stockfishEval[0].score) < 50
+    );
+
     const prompt = `
-        You are a grandmaster chess player trying to hide your true rating while being able to win. Analyze this position:
-        FEN: ${fen}
-        Move number: ${moveCount}
-        
-        Stockfish's top moves with evaluations:
-        ${stockfishEval
-          .map(
-            (e, i) => `${i + 1}. ${e.move} (score: ${e.score}, line: ${e.line})`
-          )
-          .join("\n")}
-        
-        Consider:
-        1. The position's characteristics
-        2. The need to play natural, human-like moves
-        3. Stockfish's evaluation while maintaining playing style authenticity
-        4. The game phase (${getGamePhase(chess)})
-        5. Material balance: ${evaluateMaterial(chess)}
-        
-        Return ONLY a single move in standard algebraic notation.
-        Choose a move that balances competitive strength with natural play.
-        No explanations.
-      `;
+      You are a ${accountRating}-rated chess player analyzing this position:
+      FEN: ${fen}
+      Move: ${moveCount}
+      Phase: ${gamePhase}
+      Material: ${materialBalance}
+      
+      Stockfish's top moves (depth ${stockfishEval[0]?.depth || 20}):
+      ${stockfishEval
+        .map(
+          (e, i) => `${i + 1}. ${e.move} (score: ${e.score}, line: ${e.line})`
+        )
+        .join("\n")}
+      
+      Key Considerations:
+      1. Position is ${isComplexPosition ? "complex" : "straightforward"}
+      2. Game phase weight: ${PHASE_WEIGHTS[gamePhase]}
+      3. Don't blunder pieces or miss tactical opportunities
+      4. Maintain a natural, human-like playing style
+      5. Consider both immediate tactics and strategic elements
+      
+      Choose ONE move that:
+      - Avoids blunders (moves that lose more than ${
+        EVAL_THRESHOLDS.BLUNDER
+      } centipawns)
+      - Considers both tactical and positional elements
+      - Considers the playing strength of a ${accountRating}-rated player while also wanting to win.
+      - Maintains strategic continuity
+      
+      Return ONLY the chosen move in standard algebraic notation (e.g., 'e4', 'Nf6').
+    `;
 
     const moveChoice = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-4o", // Using the latest model for better analysis
       messages: [{ role: "system", content: prompt }],
-      temperature: 0.35,
+      temperature: 0.3, // Lower temperature for more consistent moves
       max_tokens: 10,
     });
 
     const chosenMove = moveChoice.choices[0].message.content?.trim();
-    console.log("chosenMove for ", fen, chosenMove);
 
-    // Validate the chosen move
+    // Validate the chosen move and check if it's reasonable
     if (chosenMove && allLegalMoves.some((m) => m.san === chosenMove)) {
+      // Find the evaluation of the chosen move
+      const chosenMoveEval = stockfishEval.find((e) => e.move === chosenMove);
+      const topMoveScore = stockfishEval[0].score;
+
+      // If the chosen move is significantly worse than the best move, fall back to a safer option
+      if (
+        chosenMoveEval &&
+        chosenMoveEval.score < topMoveScore + EVAL_THRESHOLDS.BLUNDER
+      ) {
+        return stockfishEval[Math.floor(Math.random() * 2)].move;
+      }
+
       return chosenMove;
     }
 
-    // Fallback to Stockfish's second or third suggestion
-    const moveIndex = Math.floor(Math.random() * 2) + 1;
-    return stockfishEval[moveIndex]?.move || stockfishEval[0].move;
+    // Enhanced fallback mechanism
+    const fallbackIndex = Math.min(2, stockfishEval.length - 1);
+    return stockfishEval[fallbackIndex]?.move || stockfishEval[0].move;
   } catch (error) {
     console.error("Error in move generation:", error);
     return findSafeMove(chess);

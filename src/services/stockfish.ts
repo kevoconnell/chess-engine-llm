@@ -18,7 +18,9 @@ export async function initializeEngine() {
 export async function getStockfishEvaluation(
   fen: string,
   depth: number = 20
-): Promise<Array<{ move: string; score: number; line: string }>> {
+): Promise<
+  Array<{ move: string; score: number; line: string; depth: number }>
+> {
   if (!engine) {
     console.error("Engine not initialized");
     return [];
@@ -54,6 +56,7 @@ export async function getStockfishEvaluation(
       move: evaluation.move,
       score: evaluation.score,
       line: evaluation.line,
+      depth: evaluation.depth,
     }));
   } catch (error) {
     console.error("Stockfish evaluation error:", error);
