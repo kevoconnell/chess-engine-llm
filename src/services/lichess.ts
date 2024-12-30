@@ -103,8 +103,8 @@ async function handleGame(gameId: string) {
 
     console.log(`Game link: https://lichess.org/${gameId}`);
 
-    // Add a shorter delay (400-1300ms) when starting a new game
-    const startDelay = Math.random() * 700 + 300;
+    // Reduce initial delay to 100-300ms for first move
+    const startDelay = Math.random() * 200 + 100;
     await new Promise((resolve) => setTimeout(resolve, startDelay));
 
     // Fetch account rating with rate limit handling
