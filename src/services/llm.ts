@@ -61,6 +61,7 @@ export async function generateMove(
     });
 
     const chosenMove = moveChoice.choices[0].message.content?.trim();
+    console.log("chosenMove for ", fen, chosenMove);
 
     // Validate the chosen move
     if (chosenMove && allLegalMoves.some((m) => m.san === chosenMove)) {
@@ -68,7 +69,7 @@ export async function generateMove(
     }
 
     // Fallback to Stockfish's second or third suggestion
-    const moveIndex = Math.floor(Math.random() * 2) + 1; // randomly choose 1 or 2
+    const moveIndex = Math.floor(Math.random() * 2) + 1;
     return stockfishEval[moveIndex]?.move || stockfishEval[0].move;
   } catch (error) {
     console.error("Error in move generation:", error);
