@@ -90,7 +90,6 @@ export async function generateMove(
     const moveChoice = await openai.chat.completions.create({
       model: "o1-mini",
       messages: [{ role: "user", content: prompt }],
-      temperature: 0.3,
     });
 
     const chosenMove = moveChoice.choices[0].message.content?.trim();
