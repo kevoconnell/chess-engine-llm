@@ -1,13 +1,5 @@
-// Content for llm.ts
-// The original content is from https://raw.githubusercontent.com/kevoconnell/chess-engine-llm/master(llm.ts)
-// Here, we need to make changes to use deepseek-r1 instead of ollama. So the plan is:
-First, locate where in the code the OLLAMA API calls are made.
-In the 'llm.ts' file, there's probably an import from 'ollama' or similar library that's used to fetch chess positions using the UCI protocol and Lichess API.
-
-Next, we need to replace those imports with a new one for DeepSeek-R1. We'll have to find out what library supports this API in Node.js. Maybe something like 'deepseek-js' or another module.
-
-So, step by step:
-1. Find the import statement that's loading ollama or similar and replace it with the new library name.
+// Added import for deepseek-r1 from ollama
+import { DeepSeek-R1 } from 'ollama';
 2. Update any function calls that were using the old OLLAMA API to now use DeepSeek-R1 instead.
 3. Ensure that any environment variables are updated if necessary, like replacing OLLAMA_API_KEY with DEEPSEEK_API_KEY.
 4. Test the changes thoroughly to make sure the new service is working as expected.
