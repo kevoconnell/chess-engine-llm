@@ -1,7 +1,4 @@
-// Added import for deepseek-r1 from ollama
-import { DeepSeek-R1 } from 'ollama';
-2. Update any function calls that were using the old OLLAMA API to now use DeepSeek-R1 instead.
-3. Ensure that any environment variables are updated if necessary, like replacing OLLAMA_API_KEY with DEEPSEEK_API_KEY.
+import deepseek-R1 from 'ollama';
 4. Test the changes thoroughly to make sure the new service is working as expected.
 Now, let's outline the specific code changes needed in 'llm.ts':
 - Replace all instances of ollama calls with deepseek-r1 equivalents.
