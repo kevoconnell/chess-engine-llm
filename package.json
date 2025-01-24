@@ -1,18 +1,6 @@
 {
-  "name": "llm.ts",
-  "version": "0.1.0",
-  "description": "LLM service using DeepSeek-R1 via Ollama API",
-  "main": "main.ts",
-  "scripts": {
-    "dev": "next dev"
-  },
-  "dependencies": {
-    "ollama": "3.4.0",
-    "deepseek": "v1.0.0",
-    "typescript": "5.0.0"
-  },
-  "env": {
-    "NEXT_PUBLIC_API_001": "your-api-key"
-  },
+  "name": "project",
+  "version": "1.0.0",
+  "dependencies": {},
   "devDependencies": {}
 }
