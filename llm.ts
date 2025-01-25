@@ -1,8 +1,9 @@
-import ollama; 
+import Deepseek from 'deepseek';
 
-export const callOllama = async (prompt: string) => {
-  try {
-    const response = await fetch('http://localhost:11434', {
+export default function LLM() {
+    const model = new Deepseek('r1');
+    return model;
+}
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(prompt)
