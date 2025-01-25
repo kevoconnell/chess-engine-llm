@@ -1,7 +1,67 @@
 import Deepseek from 'deepseek';
+import { DeepSeek-R1 } from 'ollama';
+ import * as Llama from 'ollama';
 
-export default function LLM() {
-    const model = new Deepseek('r1');
+export const newLlama = () => {
+export const generateLikeResponse = async (prompt: string) => {
+ try {
+   let response = await fetch('https://api.openai.com/v1/chat/completions', {
+     method: 'POST',
+     headers: { 'Content-Type': 'application/json' },
+     body: JSON.stringify({
+       model: "gpt-4-turbo-instruct-visionary-1.3b-32768-128-128",
+       max_tokens: 500,
+       temperature: 0.7,
+       top_p: 0.7,
+     }),
+   });
+
+   if (!response.ok) {
+     throw new Error('NetworkError');
+   }
+
+   const data = await response.json();
+   return data.choices[0].message.content;
+ } catch (error) {
+   console.error('OpenAI API call failed:', error);
+   return 'Sorry, I encountered an error connecting to OpenAI.';
+ }
+}
+
+export const getCompletionFromOllama = async (prompt: string) => {
+ try {
+   let response = await fetch('http://localhost:16485/api/llm', {
+     method: 'POST',
+     headers: { 'Content-Type': 'application/json' },
+     body: JSON.stringify({
+       model: 'deepseek-R1',
+       messages: [{
+         role: 'system',
+         content: 'You are a helpful assistant',
+       }, {
+         role: 'user',
+         content: prompt,
+       }],
+     }),
+   });
+
+   if (!response.ok) {
+     throw new Error('NetworkError');
+   }
+
+   const data = await response.json();
+   return data.choices[0].message.content;
+ } catch (error) {
+   console.error('Ollama API call failed:', error);
+   return 'Sorry, I encountered an error connecting to Ollama.';
+ }
+}
+
+  });
+
+  return new Llama(config);
+}
+export default newLlama;
     return model;
 }
       method: 'POST',
