@@ -1,8 +1,20 @@
-import deepseek-R1 from 'ollama';
-4. Test the changes thoroughly to make sure the new service is working as expected.
-Now, let's outline the specific code changes needed in 'llm.ts':
-- Replace all instances of ollama calls with deepseek-r1 equivalents.
-For example, if there was a line like const OLLAMA = require('ollama'), we'll change it to const DEEPSEEK = require('deepseek-js');
+import ollama; 
+
+export const callOllama = async (prompt: string) => {
+  try {
+    const response = await fetch('http://localhost:11434', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(prompt)
+    });
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error calling Ollama:', error);
+    throw new Error('Failed to call Ollama');
+  }
+}
+
 
 - Update any API endpoints or method names. If the old code used ollama.get() or something similar, find out what the DeepSeek-R1 API expects.
 Maybe it's get from deepseek-r1 module with parameters like position and options.
