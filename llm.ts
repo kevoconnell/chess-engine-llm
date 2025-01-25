@@ -24,20 +24,28 @@ export const generateLikeResponse = async (prompt: string) => {
    return data.choices[0].message.content;
  } catch (error) {
    console.error('OpenAI API call failed:', error);
-   return 'Sorry, I encountered an error connecting to OpenAI.';
- }
+function newCode() {
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${openAIKey}'
+    },
+    body: JSON.stringify({
+      model: 'gpt-3.5-turbo',
+      messages: [{
+        role: 'system',
+        content: 'You are a helpful assistant'
+      }],
+      temperature: 0.7,
+      max_tokens: 1000
+    })
+  });
+  const data = await response.json();
+  return data.choices[0].message.content;
 }
 
-export const getCompletionFromOllama = async (prompt: string) => {
- try {
-   let response = await fetch('http://localhost:16485/api/llm', {
-     method: 'POST',
-     headers: { 'Content-Type': 'application/json' },
-     body: JSON.stringify({
-       model: 'deepseek-R1',
-       messages: [{
-         role: 'system',
-         content: 'You are a helpful assistant',
+const openAIKey = process.env.OPENAI_API_KEY;
        }, {
          role: 'user',
          content: prompt,
