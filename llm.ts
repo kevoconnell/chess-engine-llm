@@ -1,8 +1,7 @@
-import Deepseek from 'deepseek';
-import { DeepSeek-R1 } from 'ollama';
- import * as Llama from 'ollama';
-
-export const newLlama = () => {
+function newCode() {
+  // Your actual code here
+  return result;
+}
 export const generateLikeResponse = async (prompt: string) => {
  try {
    let response = await fetch('https://api.openai.com/v1/chat/completions', {
