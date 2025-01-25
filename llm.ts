@@ -9,12 +9,9 @@ export const generateLikeResponse = async (prompt: string) => {
      method: 'POST',
      headers: { 'Content-Type': 'application/json' },
      body: JSON.stringify({
-       model: "gpt-4-turbo-instruct-visionary-1.3b-32768-128-128",
-       max_tokens: 500,
-       temperature: 0.7,
-       top_p: 0.7,
-     }),
-   });
+function newCode() {
+  return result;
+}
 
    if (!response.ok) {
      throw new Error('NetworkError');
