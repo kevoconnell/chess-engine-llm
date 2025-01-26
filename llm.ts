@@ -1,11 +1,14 @@
 function newCode() {
   // Your actual code here
-  return result;
+      content: prompt,
+      role: 'user'
+    }]],
+    temperature=temperature,
+    max_tokens=maxTokens
+  );
+  return response.choices[0].message.content;
 }
-export const generateLikeResponse = async (prompt: string) => {
- try {
-   let response = await fetch('https://api.openai.com/v1/chat/completions', {
-     method: 'POST',
+
      headers: { 'Content-Type': 'application/json' },
      body: JSON.stringify({
 function newCode() {
@@ -23,21 +26,37 @@ function newCode() {
 function newCode() {
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
-    headers: { 
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${openAIKey}'
-    },
-    body: JSON.stringify({
-      model: 'gpt-3.5-turbo',
+export async function getCompletionAsync(engineName: string, prompt: string, temperature: number, maxTokens: number): Promise<string> {
+  const response = await OpenAI.chat.completions.create(
+    model=engineName,
+    messages=[[{
+      content: prompt,
+      role: 'user'
+    }]],
+    temperature=temperature,
+    max_tokens=maxTokens
+  );
+  return response.choices[0].message.content;
+}
+
       messages: [{
         role: 'system',
-        content: 'You are a helpful assistant'
-      }],
-      temperature: 0.7,
-      max_tokens: 1000
-    })
-  });
-  const data = await response.json();
+use strict
+import OpenAI from 'ollama';
+
+export async function getCompletionAsync(engineName: string, prompt: string, temperature: number, maxTokens: number): Promise<string> {
+  const response = await OpenAI.chat.completions.create(
+    model=engineName,
+    messages=[[{
+      content: prompt,
+      role: 'user'
+    }]],
+    temperature=temperature,
+    max_tokens=maxTokens
+  );
+  return response.choices[0].message.content;
+}
+
   return data.choices[0].message.content;
 }
 
